@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PATROL PONDEROSA SECURITY</title>
+<script src="https://unpkg.com/html5-qrcode"></script>
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background: #f1f5f9;
+  color: #172033;
+  margin: 0;
+  padding: 20px;
+}
+.card {
+  background: white;
+  padding: 20px;
+  margin: 12px auto;
+  max-width: 480px;
+  border-radius: 14px;
+  box-shadow: 0 2px 10px #0001;
+}
+h2 { color: #17365d; }
+button {
+  width: 100%;
+  padding: 15px;
+  margin-top: 12px;
+  border: 0;
+  border-radius: 9px;
+  background: #17365d;
+  color: white;
+  font-weight: bold;
+  font-size: 16px;
+}
+#reader { margin-top: 15px; }
+#status {
+  background: #eef2ff;
+  padding: 14px;
+  border-radius: 9px;
+  margin-top: 15px;
+  white-space: pre-wrap;
+}
+</style>
+</head>
+<body>
+
+<div class="card">
+<h2>PATROL PONDEROSA SECURITY</h2>
+<p>Construction Site • QR Code + GPS</p>
+</div>
+
+<div class="card">
+<h3>Ujian Kamera QR</h3>
+<button onclick="startCamera()">MULA SCAN QR</button>
+<div id="reader"></div>
+<div id="status">Sedia untuk ujian.</div>
+<button onclick="getGPS()">SEMAK GPS</button>
+</div>
+
+<script>
+let scanner = null;
+
+function startCamera() {
+  if (!scanner) {
+    scanner = new Html5Qrcode("reader");
+  }
+
+  scanner.start(
+    { facingMode: "environment" },
+    { fps: 10, qrbox: 230 },
+    function(decodedText) {
+      document.getElementById("status").textContent =
+        "QR BERJAYA DIBACA:\n" + decodedText;
+      scanner.pause(true);
+    }
+  ).catch(function(error) {
+    document.getElementById("status").textContent =
+      "Kamera gagal dibuka: " + error;
+  });
+}
+
+function getGPS() {
+  navigator.geolocation.getCurrentPosition(
+    function(position) {
+      document.getElementById("status").textContent =
+        "GPS BERJAYA\nLatitude: " +
+        position.coords.latitude +
+        "\nLongitude: " +
+        position.coords.longitude;
+    },
+    function(error) {
+      document.getElementById("status").textContent =
+        "GPS gagal: " + error.message;
+    },
+    { enableHighAccuracy: true }
+  );
+}
+</script>
+
+</body>
+</html>
