@@ -3,83 +3,335 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PATROL PONDEROSA SECURITY</title>
-<script src="https://unpkg.com/html5-qrcode"></script>
+<title>WAI CHOY PONDEROSA 2F</title>
+
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
 <style>
+* { box-sizing: border-box; }
 body {
   font-family: Arial, sans-serif;
-  background: #f1f5f9;
-  color: #172033;
+  background: #0f172a;
+  color: white;
   margin: 0;
   padding: 20px;
 }
-.card {
-  background: white;
-  padding: 20px;
-  margin: 12px auto;
-  max-width: 480px;
-  border-radius: 14px;
-  box-shadow: 0 2px 10px #0001;
+.container {
+  max-width: 450px;
+  margin: 30px auto;
+  background: #1e293b;
+  padding: 22px;
+  border-radius: 16px;
 }
-h2 { color: #17365d; }
-button {
+h2, h3, p { text-align: center; }
+input, button {
   width: 100%;
   padding: 15px;
-  margin-top: 12px;
-  border: 0;
-  border-radius: 9px;
-  background: #17365d;
-  color: white;
-  font-weight: bold;
+  margin: 8px 0;
+  border: none;
+  border-radius: 8px;
   font-size: 16px;
 }
-#reader { margin-top: 15px; }
-#status {
-  background: #eef2ff;
-  padding: 14px;
-  border-radius: 9px;
-  margin-top: 15px;
-  white-space: pre-wrap;
+button {
+  background: #2563eb;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
 }
+button:disabled { opacity: 0.5; }
+.green { background: #16a34a; }
+.red { background: #dc2626; }
+.gray { background: #475569; }
+#reader {
+  width: 100%;
+  overflow: hidden;
+  border-radius: 8px;
+}
+#message {
+  padding: 12px;
+  text-align: center;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.hidden { display: none; }
 </style>
 </head>
+
 <body>
 
-<div class="card">
-<h2>PATROL PONDEROSA SECURITY</h2>
-<p>Construction Site • QR Code + GPS</p>
+<div class="container">
+
+<h2>WAI CHOY PONDEROSA 2F</h2>
+<p>SECURITY PATROL SYSTEM</p>
+
+<div id="loginBox">
+
+<h3>LOGIN PENGAWAL</h3>
+
+<input id="guardId"
+placeholder="GUARD ID"
+autocomplete="username">
+
+<input id="pin"
+type="password"
+placeholder="PIN"
+autocomplete="current-password">
+
+<button id="loginButton" onclick="login()">
+LOGIN
+</button>
+
 </div>
 
-<div class="card">
-<h3>Ujian Kamera QR</h3>
-<button onclick="startCamera()">MULA SCAN QR</button>
+<div id="patrolBox" class="hidden">
+
+<h3 id="guardName"></h3>
+
+<p>Sistem Rondaan QR Code</p>
+<p>GPS tidak diperlukan</p>
+
+<button id="scanButton" class="green" onclick="startScan()">
+MULA SCAN QR
+</button>
+
 <div id="reader"></div>
-<div id="status">Sedia untuk ujian.</div>
-<button onclick="getGPS()">SEMAK GPS</button>
+
+<button class="gray" onclick="stopScan()">
+HENTI SCAN
+</button>
+
+<button class="red" onclick="logout()">
+LOG KELUAR
+</button>
+
+</div>
+
+<div id="message"></div>
+
 </div>
 
 <script>
+
+const API_URL =
+"https://script.google.com/macros/s/AKfycbwL5QHAGln3OOWxNWgWr9uvkAiynikp_SPACKRJnTOuWL3PH5KnOPU6_sznVd6fnZIQ/exec";
+
+let token = "";
 let scanner = null;
+let busy = false;
 
-function startCamera() {
-  if (!scanner) {
-    scanner = new Html5Qrcode("reader");
-  }
-
-  scanner.start(
-    { facingMode: "environment" },
-    { fps: 10, qrbox: 230 },
-    function(decodedText) {
-      document.getElementById("status").textContent =
-        "QR BERJAYA DIBACA:\n" + decodedText;
-      scanner.pause(true);
-    }
-  ).catch(function(error) {
-    document.getElementById("status").textContent =
-      "Kamera gagal dibuka: " + error;
-  });
+function showMessage(message, success = false) {
+  const box = document.getElementById("message");
+  box.textContent = message;
+  box.style.color = success ? "#4ade80" : "#fca5a5";
 }
 
+async function api(payload) {
+
+  const response = await fetch(API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "text/plain;charset=UTF-8"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    throw new Error("HTTP " + response.status);
+  }
+
+  const result = await response.json();
+
+  if (!result.success) {
+    throw new Error(result.error || "Permintaan gagal");
+  }
+
+  return result.data;
+
+}
+
+async function login() {
+
+  const guardId = document
+    .getElementById("guardId")
+    .value.trim().toUpperCase();
+
+  const pin = document
+    .getElementById("pin").value.trim();
+
+  if (!guardId || !pin) {
+    showMessage("Sila masukkan Guard ID dan PIN.");
+    return;
+  }
+
+  const button = document.getElementById("loginButton");
+  button.disabled = true;
+
+  showMessage("Sedang login...", true);
+
+  try {
+
+    const data = await api({
+      action: "login",
+      guardId: guardId,
+      pin: pin
+    });
+
+    if (!data || !data.token) {
+      throw new Error("Token login tidak diterima.");
+    }
+
+    token = data.token;
+
+    document.getElementById("loginBox")
+      .classList.add("hidden");
+
+    document.getElementById("patrolBox")
+      .classList.remove("hidden");
+
+    document.getElementById("guardName")
+      .textContent = "Selamat bertugas, " +
+      (data.name || data.guardName || guardId);
+
+    document.getElementById("pin").value = "";
+
+    showMessage("Login berjaya. Tekan MULA SCAN QR.", true);
+
+  } catch (error) {
+
+    showMessage("Login gagal: " + error.message);
+
+  } finally {
+
+    button.disabled = false;
+
+  }
+
+}
+
+async function startScan() {
+
+  if (!token || scanner || busy) return;
+
+  const button = document.getElementById("scanButton");
+  button.disabled = true;
+
+  try {
+
+    scanner = new Html5Qrcode("reader");
+
+    await scanner.start(
+      { facingMode: "environment" },
+      {
+        fps: 10,
+        qrbox: { width: 220, height: 220 }
+      },
+      onScanSuccess,
+      () => {}
+    );
+
+    showMessage("Halakan kamera ke QR checkpoint.", true);
+
+  } catch (error) {
+
+    scanner = null;
+    button.disabled = false;
+
+    showMessage("Kamera gagal: " + String(error));
+
+  }
+
+}
+
+async function stopScan() {
+
+  if (scanner) {
+
+    const current = scanner;
+
+    try {
+      await current.stop();
+      current.clear();
+      scanner = null;
+    } catch (error) {
+      showMessage("Gagal menghentikan kamera: " + error);
+      return;
+    }
+
+  }
+
+  document.getElementById("scanButton").disabled = false;
+
+}
+
+async function onScanSuccess(decodedText) {
+
+  if (busy) return;
+
+  busy = true;
+
+  const qrId = decodedText.trim().toUpperCase();
+
+  try {
+
+    await stopScan();
+
+    document.getElementById("scanButton").disabled = true;
+
+    if (!/^CP\d{3}$/.test(qrId)) {
+      throw new Error("QR checkpoint tidak sah.");
+    }
+
+    showMessage("Menyemak checkpoint " + qrId, true);
+
+    const data = await api({
+      action: "patrol",
+      token: token,
+      qrId: qrId,
+      notes: ""
+    });
+
+    if (data && (data.ok === false || data.success === false)) {
+      throw new Error(data.error || data.message || "Rekod ditolak");
+    }
+
+    showMessage(
+      "REKOD RONDAAN BERJAYA\n" +
+      "Checkpoint: " + qrId,
+      true
+    );
+
+  } catch (error) {
+
+    showMessage("Rekod gagal: " + error.message);
+
+  } finally {
+
+    busy = false;
+    document.getElementById("scanButton").disabled = false;
+
+  }
+
+}
+
+async function logout() {
+
+  if (busy) return;
+
+  await stopScan();
+
+  token = "";
+
+  document.getElementById("patrolBox")
+    .classList.add("hidden");
+
+  document.getElementById("loginBox")
+    .classList.remove("hidden");
+
+  document.getElementById("pin").value = "";
+
+  showMessage("Log keluar berjaya.", true);
+
+}
 
 </script>
 
